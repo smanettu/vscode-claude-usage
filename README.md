@@ -1,61 +1,51 @@
 # Claude Usage — VS Code Extension
 
-A lightweight VS Code extension that shows your Claude Code (Pro/Max) usage limits directly in the status bar.
+Shows your Claude Code (Pro/Max) usage limits directly in the VS Code status bar.
 
-**Status bar:** `Claude: 38% | 6%` (5-hour session | 7-day weekly)
+## Quick Install
 
-**Hover:** Rich tooltip with progress bars, reset timers, and your plan name.
-
-**Click:** QuickPick panel with the same info, instantly.
-
-Background turns yellow at 70%, red at 90%. Polls every 60 seconds.
-
-## Requirements
-
-- **macOS** (uses macOS Keychain for authentication)
-- **Claude Code CLI** installed and signed in (the official `claude` CLI, not the VS Code extension)
-- **VS Code** 1.94.0 or later
-
-No other dependencies. The extension uses zero runtime packages — only Node built-ins and the VS Code API.
-
-## Install
+Requires **macOS**, **Node.js**, and [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and signed in.
 
 ```bash
-# Clone and build
-git clone <repo-url> && cd vscode-claude-usage
-npm install
-npm run compile
-
-# Package and install
-npx @vscode/vsce package
+git clone https://github.com/user/vscode-claude-usage.git
+cd vscode-claude-usage
+npm install                    # install dev dependencies
+npm run compile                # compile TypeScript
+npx @vscode/vsce package       # package into .vsix (downloads the tool automatically)
 code --install-extension vscode-claude-usage-0.1.0.vsix
 ```
 
-After installing, restart VS Code. The usage indicator appears in the bottom status bar.
+Restart VS Code after installing. The usage indicator appears in the bottom-right status bar.
+
+## What It Does
+
+- **Status bar** shows `Claude: 38% | 6%` (5-hour session | 7-day weekly usage)
+- **Hover** for a tooltip with blue progress bars, reset timers, and your plan name
+- **Click** for a QuickPick panel with the same info, instantly
+- Background turns yellow at 70%, red at 90%
+- Polls every 60 seconds, click to refresh manually
 
 ## How Authentication Works
 
-The extension reads the OAuth token that Claude Code CLI stores in the **macOS Keychain** under the service name `Claude Code-credentials`. It does this by shelling out to:
+The extension reads the OAuth token that **Claude Code CLI** stores in the macOS Keychain. No API keys or manual configuration needed — if you're signed into Claude Code CLI, it just works.
+
+Specifically, it runs:
 
 ```bash
 security find-generic-password -s "Claude Code-credentials" -w
 ```
 
-This returns a JSON blob containing an OAuth access token, refresh token, and account metadata (plan type, scopes, etc.). The extension extracts the access token and uses it to call `GET https://api.anthropic.com/api/oauth/usage`.
+This returns a JSON blob with an OAuth access token. The extension uses it to call `GET https://api.anthropic.com/api/oauth/usage` over HTTPS.
 
 ### Is this secure?
 
-**Reasonably, yes — with caveats:**
+**Yes, with standard caveats:**
 
-- **The token never leaves your machine.** It goes from Keychain → extension process → Anthropic's API over HTTPS. It is not logged, stored on disk, or sent anywhere else.
-- **macOS Keychain access control applies.** The first time the extension reads the credential, macOS will show a permission dialog. After you allow it once, subsequent reads are silent.
-- **The token is cached in memory only.** It lives in the extension's Node.js process and is cleared when VS Code closes or the extension deactivates.
-- **No token refresh flow (yet).** If the token expires, the extension shows an error state. You need to reopen Claude Code CLI to refresh it.
-
-**Caveats:**
-
-- The `security` CLI is called via `child_process.execSync`. Any VS Code extension running in the same process could theoretically read the same keychain entry — this is not unique to this extension, it's a property of how VS Code extensions share a process.
-- The usage API endpoint (`/api/oauth/usage`) is **undocumented**. It could change or break without notice.
+- The token never leaves your machine — it goes from Keychain to Anthropic's API over HTTPS. It is not logged, stored on disk, or sent anywhere else.
+- macOS Keychain access control applies. First run triggers a one-time "allow access?" dialog.
+- The token is cached in memory only and cleared when VS Code closes.
+- The `security` CLI is called via `child_process.execSync`. Any VS Code extension in the same process could theoretically read the same keychain entry — this is how VS Code's extension model works, not specific to this extension.
+- The usage API endpoint is **undocumented** and could change without notice.
 
 ## Development
 
