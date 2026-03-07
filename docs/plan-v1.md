@@ -85,6 +85,21 @@ code --install-extension vscode-claude-usage-0.1.0.vsix
 
 **Total**: ~250 lines across 4 files. Zero runtime dependencies.
 
+## Remaining Polish (v1)
+
+### Click shows usage info instantly
+- Clicking the status bar item opens a QuickPick dropdown with the same usage info as the hover tooltip
+- Displays: plan name (if detected), session progress bar + reset timer, weekly progress bar + reset timer
+- Includes a "Refresh" action item to trigger a fresh API call
+- Shows cached data instantly (no loading delay)
+- VS Code has no API to programmatically trigger a tooltip, so QuickPick is the best native alternative
+
+### Plan name detection
+- The extension detects the user's Claude plan name (e.g., "Pro", "Max 5x") from the API response
+- Since the API is undocumented, the extension probes multiple plausible field paths
+- If no plan field is found, the plan name is simply omitted (graceful degradation)
+- Plan name is shown in both the hover tooltip title and the click QuickPick title
+
 ## Known Risks
 1. **Undocumented API**: Could break without notice. We wrap everything in try/catch with clear error display.
 2. **Token expiration**: OAuth tokens expire. v1 shows an error message; v2 could implement refresh flow.
@@ -98,6 +113,9 @@ code --install-extension vscode-claude-usage-0.1.0.vsix
 4. Click it — should refresh immediately
 5. Simulate error: temporarily rename keychain entry — should show "No Token" state
 6. Package as .vsix and install in main VS Code to verify it works outside dev mode
+7. Click the status bar — should show a QuickPick with usage bars, reset timers, and plan name
+8. Dismiss QuickPick by clicking outside or pressing Escape
+9. Click "Refresh" in the QuickPick — should fetch fresh data
 
 ## Future Ideas (v2+)
 - OAuth token refresh flow (handle expired tokens automatically)

@@ -12,11 +12,24 @@ interface UsageWindow {
 interface UsageResponse {
   five_hour: UsageWindow;
   seven_day: UsageWindow;
+  planName?: string;
 }
+
 
 // --- Token ---
 
 let cachedToken: string | null = null;
+let cachedPlanName: string | undefined;
+
+function formatPlanName(raw: string | undefined): string | undefined {
+  if (!raw) { return undefined; }
+  // e.g. "default_claude_max_5x" → "Max 5x", "default_claude_pro" → "Pro"
+  const cleaned = raw.replace(/^default_claude_/i, "");
+  return cleaned
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 function getOAuthToken(): string | null {
   if (cachedToken) {
@@ -28,7 +41,9 @@ function getOAuthToken(): string | null {
       { encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }
     ).trim();
     const parsed = JSON.parse(raw);
-    cachedToken = parsed?.claudeAiOauth?.accessToken ?? null;
+    const oauth = parsed?.claudeAiOauth;
+    cachedToken = oauth?.accessToken ?? null;
+    cachedPlanName = formatPlanName(oauth?.rateLimitTier ?? oauth?.subscriptionType);
     return cachedToken;
   } catch {
     return null;
@@ -37,6 +52,7 @@ function getOAuthToken(): string | null {
 
 function clearCachedToken(): void {
   cachedToken = null;
+  cachedPlanName = undefined;
 }
 
 // --- API ---
@@ -61,7 +77,12 @@ function fetchUsage(token: string): Promise<UsageResponse> {
         res.on("end", () => {
           if (res.statusCode === 200) {
             try {
-              resolve(JSON.parse(data));
+              const raw = JSON.parse(data);
+              resolve({
+                five_hour: raw.five_hour,
+                seven_day: raw.seven_day,
+                planName: cachedPlanName,
+              });
             } catch {
               reject(new Error(`Invalid JSON: ${data.slice(0, 200)}`));
             }
@@ -121,7 +142,11 @@ function buildTooltip(usage: UsageResponse): vscode.MarkdownString {
   const fiveHr = usage.five_hour;
   const sevenDay = usage.seven_day;
 
-  md.appendMarkdown(`**Claude Code Usage**\n\n`);
+  md.appendMarkdown(
+    usage.planName
+      ? `**Claude Code Usage** (${usage.planName})\n\n`
+      : `**Claude Code Usage**\n\n`
+  );
 
   md.appendMarkdown(`**Session** (5-hour window)\n\n`);
   md.appendMarkdown(progressBarHtml(fiveHr.utilization) + "\n\n");
@@ -133,17 +158,71 @@ function buildTooltip(usage: UsageResponse): vscode.MarkdownString {
   md.appendMarkdown(progressBarHtml(sevenDay.utilization) + "\n\n");
   md.appendMarkdown(`Resets in ${formatTimeUntil(sevenDay.resets_at)}\n\n`);
 
-  md.appendMarkdown(
-    `<span style="color:#9ca3af;">Click to refresh</span>`
-  );
-
   return md;
+}
+
+// --- QuickPick (click display) ---
+
+function progressBarText(percent: number): string {
+  const pct = Math.min(100, Math.max(0, percent));
+  const filled = Math.round(pct / 5);
+  const empty = 20 - filled;
+  return "\u2588".repeat(filled) + "\u2591".repeat(empty) + ` ${Math.round(pct)}%`;
+}
+
+function showUsageQuickPick(usage: UsageResponse): void {
+  const fiveHr = usage.five_hour;
+  const sevenDay = usage.seven_day;
+
+  const items: vscode.QuickPickItem[] = [
+    {
+      label: `$(clock) Session (5-hour window)`,
+      detail: `    ${progressBarText(fiveHr.utilization)}    Resets in ${formatTimeUntil(fiveHr.resets_at)}`,
+      alwaysShow: true,
+    },
+    {
+      label: `$(calendar) Weekly (7-day window)`,
+      detail: `    ${progressBarText(sevenDay.utilization)}    Resets in ${formatTimeUntil(sevenDay.resets_at)}`,
+      alwaysShow: true,
+    },
+    { kind: vscode.QuickPickItemKind.Separator, label: "" },
+    {
+      label: `$(sync) Refresh`,
+      alwaysShow: true,
+    },
+  ];
+
+  const qp = vscode.window.createQuickPick();
+  qp.title = usage.planName
+    ? `Claude Code Usage (${usage.planName})`
+    : "Claude Code Usage";
+  qp.items = items;
+  qp.placeholder = "Usage overview";
+  qp.canSelectMany = false;
+
+  qp.onDidAccept(() => {
+    const selected = qp.selectedItems[0];
+    if (selected?.label.includes("Refresh")) {
+      qp.dispose();
+      updateUsage().then(() => {
+        if (lastUsage) {
+          showUsageQuickPick(lastUsage);
+        }
+      });
+    } else {
+      qp.dispose();
+    }
+  });
+
+  qp.onDidHide(() => qp.dispose());
+  qp.show();
 }
 
 // --- Status Bar ---
 
 let statusBarItem: vscode.StatusBarItem;
 let refreshInterval: ReturnType<typeof setInterval> | undefined;
+let lastUsage: UsageResponse | undefined;
 
 function updateStatusBarAppearance(
   usage: UsageResponse
@@ -186,6 +265,7 @@ async function updateUsage(): Promise<void> {
 
   try {
     const usage = await fetchUsage(token);
+    lastUsage = usage;
     updateStatusBarAppearance(usage);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -211,7 +291,17 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const refreshCmd = vscode.commands.registerCommand(
     "claude-usage.refresh",
-    () => updateUsage()
+    () => {
+      if (lastUsage) {
+        showUsageQuickPick(lastUsage);
+      } else {
+        updateUsage().then(() => {
+          if (lastUsage) {
+            showUsageQuickPick(lastUsage);
+          }
+        });
+      }
+    }
   );
   context.subscriptions.push(refreshCmd);
 
