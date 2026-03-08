@@ -28,7 +28,8 @@ function formatPlanName(raw: string | undefined): string | undefined {
   return cleaned
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+    .join(" ")
+    .replace(/[^\w\s]/g, ""); // strip any non-word chars before use in trusted MarkdownString
 }
 
 function getOAuthToken(): string | null {
@@ -73,7 +74,13 @@ function fetchUsage(token: string): Promise<UsageResponse> {
       },
       (res) => {
         let data = "";
-        res.on("data", (chunk: Buffer) => (data += chunk));
+        const MAX_BODY = 10_240; // 10 KB — far above any valid response
+        res.on("data", (chunk: Buffer) => {
+          data += chunk;
+          if (data.length > MAX_BODY) {
+            req.destroy(new Error("Response too large"));
+          }
+        });
         res.on("end", () => {
           if (res.statusCode === 200) {
             try {

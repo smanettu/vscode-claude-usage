@@ -45,7 +45,7 @@ This returns a JSON blob with an OAuth access token. The extension uses it to ca
 
 **Yes, with standard caveats:**
 
-- The token never leaves your machine — it goes from Keychain to Anthropic's API over HTTPS. It is not logged, stored on disk, or sent anywhere else.
+- The extension makes exactly one outbound HTTPS connection: to `api.anthropic.com`. No telemetry, no third parties, no other hosts.
 - macOS Keychain access control applies. First run triggers a one-time "allow access?" dialog.
 - The token is cached in memory only and cleared when VS Code closes.
 - The `security` CLI is called via `child_process.execSync`. Any VS Code extension in the same process could theoretically read the same keychain entry — this is how VS Code's extension model works, not specific to this extension.
