@@ -158,6 +158,9 @@ function buildTooltip(usage: UsageResponse): vscode.MarkdownString {
   md.appendMarkdown(progressBarHtml(sevenDay.utilization) + "\n\n");
   md.appendMarkdown(`Resets in ${formatTimeUntil(sevenDay.resets_at)}\n\n`);
 
+  md.appendMarkdown(`---\n\n`);
+  md.appendMarkdown(`[$(sync) Refresh](command:claude-usage.silentRefresh)\n\n`);
+
   return md;
 }
 
@@ -304,6 +307,12 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   );
   context.subscriptions.push(refreshCmd);
+
+  const silentRefreshCmd = vscode.commands.registerCommand(
+    "claude-usage.silentRefresh",
+    () => updateUsage()
+  );
+  context.subscriptions.push(silentRefreshCmd);
 
   // Initial fetch
   updateUsage();
