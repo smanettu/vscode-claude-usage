@@ -4,10 +4,13 @@
   "description": "Display Claude Code usage limits in the VS Code status bar",
   "version": "0.1.0",
   "publisher": "local",
+  "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.94.0"
   },
+  "os": ["darwin"],
   "categories": ["Other"],
+  "keywords": ["claude", "anthropic", "ai", "usage", "status-bar"],
   "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
   "contributes": {

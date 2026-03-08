@@ -1,15 +1,17 @@
-# Claude Usage — VS Code Extension
-
 > Built end-to-end with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — from architecture to implementation.
+
+# Claude Usage — VS Code Extension
 
 Shows your Claude Code (Pro/Max) usage limits directly in the VS Code status bar.
 
-## Quick Install
+## Install
 
-Requires **macOS**, **Node.js**, and [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and signed in.
+**From the VS Code Marketplace** *(coming soon)*: search for "Claude Usage" in the Extensions panel.
+
+**Manual install (from source):** requires **macOS**, **Node.js**, and [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and signed in.
 
 ```bash
-git clone https://github.com/user/vscode-claude-usage.git
+git clone https://github.com/your-username/vscode-claude-usage.git
 cd vscode-claude-usage
 npm install                    # install dev dependencies
 npm run compile                # compile TypeScript
