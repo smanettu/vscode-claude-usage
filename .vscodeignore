@@ -1,0 +1,20 @@
+# Source & build tooling (compiled output in out/ is kept)
+src/
+tsconfig.json
+scripts/
+
+# Dev configs
+.vscode/
+.gitignore
+.claude/
+CLAUDE.md
+
+# Docs / planning
+docs/
+
+# Dependencies
+node_modules/
+
+# Test artefacts
+.vscode-test/
+**/*.vsix
