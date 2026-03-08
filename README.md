@@ -1,5 +1,7 @@
 # Claude Usage — VS Code Extension
 
+> Built end-to-end with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — from architecture to implementation.
+
 Shows your Claude Code (Pro/Max) usage limits directly in the VS Code status bar.
 
 ## Quick Install
