@@ -68,7 +68,7 @@ function fetchUsage(token: string): Promise<UsageResponse> {
         headers: {
           Authorization: `Bearer ${token}`,
           "anthropic-beta": "oauth-2025-04-20",
-          "User-Agent": "vscode-claude-usage/0.1.0",
+          "User-Agent": `vscode-claude-usage/${vscode.extensions.getExtension("smanettu.vscode-claude-usage")?.packageJSON?.version ?? "0.0.0"}`,
           Accept: "application/json",
         },
       },
@@ -306,7 +306,7 @@ async function updateUsage(): Promise<void> {
 
     if (err.isRateLimit) {
       // Use Retry-After header if available, otherwise exponential backoff
-      const backoffSec = err.retryAfterSec || Math.min(60 * 2 ** consecutiveErrors, MAX_POLL_MS / 1000);
+      const backoffSec = Math.max(60, err.retryAfterSec || Math.min(60 * 2 ** consecutiveErrors, MAX_POLL_MS / 1000));
       reschedule(backoffSec * 1000);
       statusBarItem.text = "$(warning) Claude: Rate Limited";
       statusBarItem.tooltip = `Rate limited — retrying in ${Math.round(backoffSec / 60)}m`;
