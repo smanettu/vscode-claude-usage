@@ -57,7 +57,7 @@ npm run watch
 
 # Package for local install
 npx @vscode/vsce package
-code --install-extension vscode-claude-usage-0.1.0.vsix
+code --install-extension vscode-claude-usage-*.vsix
 ```
 
 ## Key VS Code APIs Used

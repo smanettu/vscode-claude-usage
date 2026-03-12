@@ -3,14 +3,24 @@
   "displayName": "Claude Usage",
   "description": "Display Claude Code usage limits in the VS Code status bar",
   "version": "0.1.0",
-  "publisher": "local",
+  "publisher": "smanettu",
+  "author": "Vincenzo Vitale",
+  "license": "MIT",
   "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smanettu/vscode-claude-usage"
+  },
+  "homepage": "https://github.com/smanettu/vscode-claude-usage#readme",
+  "bugs": {
+    "url": "https://github.com/smanettu/vscode-claude-usage/issues"
+  },
   "engines": {
     "vscode": "^1.94.0"
   },
   "os": ["darwin"],
   "categories": ["Other"],
-  "keywords": ["claude", "anthropic", "ai", "usage", "status-bar"],
+  "keywords": ["claude", "anthropic", "ai", "usage", "status-bar", "rate-limit"],
   "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
   "contributes": {
@@ -26,6 +36,7 @@
     ]
   },
   "scripts": {
+    "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./"
   },
