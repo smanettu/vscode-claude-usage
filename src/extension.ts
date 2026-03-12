@@ -278,6 +278,11 @@ function updateStatusBarAppearance(
 }
 
 async function updateUsage(): Promise<void> {
+  // Skip polling in unfocused windows to avoid multiplied requests
+  if (!vscode.window.state.focused) {
+    return;
+  }
+
   const token = getOAuthToken();
   if (!token) {
     statusBarItem.text = "$(warning) Claude: No Token";
@@ -354,6 +359,15 @@ export function activate(context: vscode.ExtensionContext): void {
     () => updateUsage()
   );
   context.subscriptions.push(silentRefreshCmd);
+
+  // Refresh immediately when this window gains focus
+  context.subscriptions.push(
+    vscode.window.onDidChangeWindowState((state) => {
+      if (state.focused) {
+        updateUsage();
+      }
+    })
+  );
 
   // Initial fetch — updateUsage() will schedule the recurring poll via reschedule()
   updateUsage();
