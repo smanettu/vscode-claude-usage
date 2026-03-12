@@ -96,6 +96,12 @@ function fetchUsage(token: string): Promise<UsageResponse> {
           } else if (res.statusCode === 401) {
             clearCachedToken();
             reject(new Error("Token expired — reopen Claude Code to refresh"));
+          } else if (res.statusCode === 429) {
+            const retryAfter = res.headers["retry-after"];
+            const err = new Error("Rate limited by API");
+            (err as any).retryAfterSec = retryAfter ? parseInt(retryAfter, 10) : undefined;
+            (err as any).isRateLimit = true;
+            reject(err);
           } else {
             reject(new Error(`API ${res.statusCode}: ${data.slice(0, 200)}`));
           }
@@ -233,6 +239,16 @@ function showUsageQuickPick(usage: UsageResponse): void {
 let statusBarItem: vscode.StatusBarItem;
 let refreshInterval: ReturnType<typeof setInterval> | undefined;
 let lastUsage: UsageResponse | undefined;
+let consecutiveErrors = 0;
+const BASE_POLL_MS = 60_000;
+const MAX_POLL_MS = 10 * 60_000; // 10 minutes
+
+function reschedule(ms: number): void {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+  }
+  refreshInterval = setInterval(updateUsage, ms);
+}
 
 function updateStatusBarAppearance(
   usage: UsageResponse
@@ -276,14 +292,32 @@ async function updateUsage(): Promise<void> {
   try {
     const usage = await fetchUsage(token);
     lastUsage = usage;
+    consecutiveErrors = 0;
+    reschedule(BASE_POLL_MS);
     updateStatusBarAppearance(usage);
-  } catch (err) {
+  } catch (err: any) {
+    consecutiveErrors++;
     const message = err instanceof Error ? err.message : String(err);
-    statusBarItem.text = "$(error) Claude: Error";
-    statusBarItem.tooltip = `Failed to fetch usage: ${message}`;
-    statusBarItem.backgroundColor = new vscode.ThemeColor(
-      "statusBarItem.errorBackground"
-    );
+
+    if (err.isRateLimit) {
+      // Use Retry-After header if available, otherwise exponential backoff
+      const backoffSec = err.retryAfterSec || Math.min(60 * 2 ** consecutiveErrors, MAX_POLL_MS / 1000);
+      reschedule(backoffSec * 1000);
+      statusBarItem.text = "$(warning) Claude: Rate Limited";
+      statusBarItem.tooltip = `Rate limited — retrying in ${Math.round(backoffSec / 60)}m`;
+      statusBarItem.backgroundColor = new vscode.ThemeColor(
+        "statusBarItem.warningBackground"
+      );
+    } else {
+      // Backoff on any error to avoid hammering a broken endpoint
+      const backoffMs = Math.min(BASE_POLL_MS * 2 ** consecutiveErrors, MAX_POLL_MS);
+      reschedule(backoffMs);
+      statusBarItem.text = "$(error) Claude: Error";
+      statusBarItem.tooltip = `Failed to fetch usage: ${message}\nRetrying in ${Math.round(backoffMs / 60_000)}m`;
+      statusBarItem.backgroundColor = new vscode.ThemeColor(
+        "statusBarItem.errorBackground"
+      );
+    }
   }
 }
 
@@ -321,11 +355,8 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(silentRefreshCmd);
 
-  // Initial fetch
+  // Initial fetch — updateUsage() will schedule the recurring poll via reschedule()
   updateUsage();
-
-  // Poll every 60 seconds
-  refreshInterval = setInterval(updateUsage, 60_000);
   context.subscriptions.push({
     dispose: () => {
       if (refreshInterval) {
