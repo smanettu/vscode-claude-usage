@@ -24,7 +24,7 @@ Shows your [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Pro/Ma
 
 ## Install
 
-**From the VS Code Marketplace:** search for "Claude Usage" in the Extensions panel, or install from the [Marketplace page](https://marketplace.visualstudio.com/items?itemName=smanettu.vscode-claude-usage).
+**From the VS Code Marketplace:** search for "Claude Code Usage Bar" in the Extensions panel, or install from the [Marketplace page](https://marketplace.visualstudio.com/items?itemName=smanettu.vscode-claude-usage).
 
 **Manual install:**
 
@@ -43,7 +43,7 @@ Restart VS Code after installing. The usage indicator appears in the bottom-righ
 
 The extension reads the OAuth token that **Claude Code CLI** stores in the macOS Keychain. No API keys or manual configuration needed — if you're signed into Claude Code CLI, it just works.
 
-- The extension makes exactly one outbound HTTPS connection: to `api.anthropic.com`
+- The extension connects only to Anthropic: `api.anthropic.com` (usage data) and `console.anthropic.com` (token refresh on rate limit)
 - No telemetry, no third parties
 - macOS Keychain access control applies; first run triggers a one-time "allow access?" dialog
 - The token is cached in memory only and cleared when VS Code closes
