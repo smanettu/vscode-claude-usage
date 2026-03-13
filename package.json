@@ -1,6 +1,6 @@
 {
   "name": "vscode-claude-usage",
-  "displayName": "Claude Usage",
+  "displayName": "Claude Code Usage Bar",
   "description": "Display Claude Code usage limits in the VS Code status bar",
   "version": "0.1.0",
   "publisher": "smanettu",
