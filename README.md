@@ -4,9 +4,14 @@ Shows your [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Pro/Ma
 
 ## Features
 
-- **Status bar** shows `Claude: 38% | 6%` (5-hour session | 7-day weekly usage)
+<img src="images/status-tooltip.png" alt="Status bar with hover tooltip" width="280">
+
+- **Status bar** shows `Claude: 12% | 4%` (5-hour session | 7-day weekly usage)
 - **Hover** for a rich tooltip with progress bars, reset timers, and your plan name
 - **Click** for a QuickPick panel with full usage details
+
+<img src="images/quickpick.png" alt="QuickPick detail panel" width="500">
+
 - Color-coded warnings: yellow at 70%, red at 90%
 - Auto-polls every 60 seconds; click to refresh manually
 - Only polls in focused windows to avoid unnecessary API calls
@@ -59,4 +64,4 @@ npm run watch      # Watch mode
 
 ---
 
-> Built end-to-end with [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+> Built by [Vincenzo Vitale](https://github.com/vincenzovitale) with [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
