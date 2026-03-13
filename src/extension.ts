@@ -23,7 +23,7 @@ const OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 let cachedToken: string | null = null;
 let cachedRefreshToken: string | null = null;
 let cachedPlanName: string | undefined;
-let cachedRawCredentials: any = null; // full keychain JSON, for re-writing after refresh
+let cachedRawCredentials: any = null;
 
 function formatPlanName(raw: string | undefined): string | undefined {
   if (!raw) { return undefined; }
@@ -123,9 +123,12 @@ function refreshOAuthToken(refreshToken: string): Promise<TokenRefreshResponse> 
   });
 }
 
+function escapeShellArg(arg: string): string {
+  return "'" + arg.replace(/'/g, "'\\''") + "'";
+}
+
 function writeCredentialsToKeychain(newAccess: string, newRefresh: string): void {
   if (!cachedRawCredentials) { return; }
-  // Update the OAuth fields in the original credentials structure
   const updated = { ...cachedRawCredentials };
   if (updated.claudeAiOauth) {
     updated.claudeAiOauth = {
@@ -135,19 +138,14 @@ function writeCredentialsToKeychain(newAccess: string, newRefresh: string): void
     };
   }
   const json = JSON.stringify(updated);
-  // -U: update if the entry already exists — atomic, no delete/re-add window
+  // -U: atomic update — no delete/re-add window where credentials are missing
   execSync(
     `security add-generic-password -U -s "Claude Code-credentials" -a "credentials" -w ${escapeShellArg(json)}`,
     { encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }
   );
-  // Update caches
   cachedToken = newAccess;
   cachedRefreshToken = newRefresh;
   cachedRawCredentials = updated;
-}
-
-function escapeShellArg(arg: string): string {
-  return "'" + arg.replace(/'/g, "'\\''") + "'";
 }
 
 // --- API ---
@@ -420,6 +418,7 @@ async function updateUsage(): Promise<void> {
     }
 
     if (err.isRateLimit) {
+      clearCachedToken();
       const backoffSec = Math.max(60, err.retryAfterSec || Math.min(60 * 2 ** consecutiveErrors, MAX_POLL_MS / 1000));
       reschedule(backoffSec * 1000);
       statusBarItem.text = "$(warning) Claude: Rate Limited";

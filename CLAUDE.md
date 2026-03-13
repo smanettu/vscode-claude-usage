@@ -36,16 +36,6 @@ tsconfig.json       — TypeScript config
   ```
 - **Important**: This is an undocumented API. It could break without notice.
 
-### Token refresh
-
-When a 429 is received, the extension automatically refreshes the OAuth token:
-
-- **Endpoint**: `POST https://console.anthropic.com/v1/oauth/token`
-- **Client ID**: `9d1c250a-e61b-44d9-88ed-5944d1962f5e`
-- **Body**: `{ grant_type: "refresh_token", refresh_token, client_id }`
-- **Important**: Refresh tokens are one-time use (rotation). Both the new `accessToken` and `refreshToken` are written back to the keychain immediately after a successful refresh.
-- Rate limits are per-access-token, so a fresh token gets a fresh quota window.
-
 ### Token retrieval (macOS only)
 
 ```bash
@@ -53,6 +43,17 @@ security find-generic-password -s "Claude Code-credentials" -w
 ```
 
 Returns JSON containing `claudeAiOauth.accessToken` and `claudeAiOauth.refreshToken`.
+
+### Token refresh & rate limiting
+
+On a 429, the extension automatically refreshes the OAuth token:
+
+- **Endpoint**: `POST https://console.anthropic.com/v1/oauth/token`
+- **Client ID**: `9d1c250a-e61b-44d9-88ed-5944d1962f5e`
+- **Body**: `{ grant_type: "refresh_token", refresh_token, client_id }`
+- Rate limits are per-access-token, so a fresh token gets a fresh quota window.
+- Refresh tokens are one-time use (rotation). Both new `accessToken` and `refreshToken` are written back to keychain atomically (`security add-generic-password -U`) so Claude Code picks them up too.
+- If refresh fails, the extension falls back to exponential backoff.
 
 ## Development
 
