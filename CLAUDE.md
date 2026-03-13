@@ -7,13 +7,13 @@ A lightweight VS Code extension that displays Claude Code (Pro/Max plan) usage l
 **How it works:**
 - A status bar item shows `Claude: X% | Y%` (5-hour session | 7-day weekly usage)
 - Hovering shows a rich tooltip with blue progress bars and reset timers
-- Clicking force-refreshes the data
+- Clicking opens a usage QuickPick; clicking during an error/rate-limit state forces an immediate retry
 - Background turns yellow at 70%, red at 90%
-- Polls every 60 seconds
+- Polls every 60 seconds; focus events are debounced to 30s to avoid multi-window spam
 
 ## Architecture
 
-Single-file extension (`src/extension.ts`, ~200 lines). Zero runtime dependencies.
+Single-file extension (`src/extension.ts`, ~400 lines). Zero runtime dependencies.
 
 ```
 src/extension.ts    — All logic: keychain auth, API fetch, tooltip, status bar
@@ -36,13 +36,23 @@ tsconfig.json       — TypeScript config
   ```
 - **Important**: This is an undocumented API. It could break without notice.
 
+### Token refresh
+
+When a 429 is received, the extension automatically refreshes the OAuth token:
+
+- **Endpoint**: `POST https://console.anthropic.com/v1/oauth/token`
+- **Client ID**: `9d1c250a-e61b-44d9-88ed-5944d1962f5e`
+- **Body**: `{ grant_type: "refresh_token", refresh_token, client_id }`
+- **Important**: Refresh tokens are one-time use (rotation). Both the new `accessToken` and `refreshToken` are written back to the keychain immediately after a successful refresh.
+- Rate limits are per-access-token, so a fresh token gets a fresh quota window.
+
 ### Token retrieval (macOS only)
 
 ```bash
 security find-generic-password -s "Claude Code-credentials" -w
 ```
 
-Returns JSON containing `claudeAiOauth.accessToken`.
+Returns JSON containing `claudeAiOauth.accessToken` and `claudeAiOauth.refreshToken`.
 
 ## Development
 
@@ -89,6 +99,6 @@ code --install-extension vscode-claude-usage-*.vsix
 ## Known Risks & Limitations
 
 1. **Undocumented API** — `api.anthropic.com/api/oauth/usage` is not in official docs
-2. **Token expiration** — OAuth tokens expire; v1 shows an error, v2 could refresh
+2. **Token expiration** — OAuth tokens expire; the extension auto-refreshes via the refresh token on 429s and clears caches on 401s
 3. **Keychain prompt** — First run may trigger macOS "allow access?" dialog (one-time)
 4. **Tooltip HTML** — `background-color` in MarkdownString has limited support; Unicode blocks (`\u2588`) are the fallback

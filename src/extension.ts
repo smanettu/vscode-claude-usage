@@ -18,8 +18,12 @@ interface UsageResponse {
 
 // --- Token ---
 
+const OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+
 let cachedToken: string | null = null;
+let cachedRefreshToken: string | null = null;
 let cachedPlanName: string | undefined;
+let cachedRawCredentials: any = null; // full keychain JSON, for re-writing after refresh
 
 function formatPlanName(raw: string | undefined): string | undefined {
   if (!raw) { return undefined; }
@@ -42,8 +46,10 @@ function getOAuthToken(): string | null {
       { encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }
     ).trim();
     const parsed = JSON.parse(raw);
+    cachedRawCredentials = parsed;
     const oauth = parsed?.claudeAiOauth;
     cachedToken = oauth?.accessToken ?? null;
+    cachedRefreshToken = oauth?.refreshToken ?? null;
     cachedPlanName = formatPlanName(oauth?.rateLimitTier ?? oauth?.subscriptionType);
     return cachedToken;
   } catch {
@@ -53,7 +59,95 @@ function getOAuthToken(): string | null {
 
 function clearCachedToken(): void {
   cachedToken = null;
+  cachedRefreshToken = null;
   cachedPlanName = undefined;
+  cachedRawCredentials = null;
+}
+
+// --- Token Refresh ---
+
+interface TokenRefreshResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
+}
+
+function refreshOAuthToken(refreshToken: string): Promise<TokenRefreshResponse> {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: OAUTH_CLIENT_ID,
+    });
+
+    const req = https.request(
+      {
+        hostname: "console.anthropic.com",
+        path: "/v1/oauth/token",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+          "User-Agent": `vscode-claude-usage/${vscode.extensions.getExtension("smanettu.vscode-claude-usage")?.packageJSON?.version ?? "0.0.0"}`,
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => { data += chunk; });
+        res.on("end", () => {
+          if (res.statusCode === 200) {
+            try {
+              const parsed = JSON.parse(data);
+              if (!parsed.access_token) {
+                reject(new Error("No access_token in refresh response"));
+                return;
+              }
+              resolve(parsed as TokenRefreshResponse);
+            } catch {
+              reject(new Error("Invalid JSON from token refresh"));
+            }
+          } else {
+            reject(new Error(`Token refresh failed: ${res.statusCode} ${data.slice(0, 200)}`));
+          }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.setTimeout(30_000, () => {
+      req.destroy();
+      reject(new Error("Token refresh timed out"));
+    });
+    req.write(body);
+    req.end();
+  });
+}
+
+function writeCredentialsToKeychain(newAccess: string, newRefresh: string): void {
+  if (!cachedRawCredentials) { return; }
+  // Update the OAuth fields in the original credentials structure
+  const updated = { ...cachedRawCredentials };
+  if (updated.claudeAiOauth) {
+    updated.claudeAiOauth = {
+      ...updated.claudeAiOauth,
+      accessToken: newAccess,
+      refreshToken: newRefresh,
+    };
+  }
+  const json = JSON.stringify(updated);
+  // -U: update if the entry already exists — atomic, no delete/re-add window
+  execSync(
+    `security add-generic-password -U -s "Claude Code-credentials" -a "credentials" -w ${escapeShellArg(json)}`,
+    { encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }
+  );
+  // Update caches
+  cachedToken = newAccess;
+  cachedRefreshToken = newRefresh;
+  cachedRawCredentials = updated;
+}
+
+function escapeShellArg(arg: string): string {
+  return "'" + arg.replace(/'/g, "'\\''") + "'";
 }
 
 // --- API ---
@@ -240,7 +334,9 @@ let statusBarItem: vscode.StatusBarItem;
 let refreshInterval: ReturnType<typeof setInterval> | undefined;
 let lastUsage: UsageResponse | undefined;
 let consecutiveErrors = 0;
+let lastFetchTime = 0;
 const BASE_POLL_MS = 60_000;
+const FOCUS_DEBOUNCE_MS = 30_000;
 const MAX_POLL_MS = 10 * 60_000; // 10 minutes
 
 function reschedule(ms: number): void {
@@ -294,6 +390,8 @@ async function updateUsage(): Promise<void> {
     return;
   }
 
+  lastFetchTime = Date.now();
+
   try {
     const usage = await fetchUsage(token);
     lastUsage = usage;
@@ -304,12 +402,30 @@ async function updateUsage(): Promise<void> {
     consecutiveErrors++;
     const message = err instanceof Error ? err.message : String(err);
 
+    if (err.isRateLimit && cachedRefreshToken) {
+      // Rate limits are per-access-token — refresh to get a fresh quota
+      try {
+        const refreshed = await refreshOAuthToken(cachedRefreshToken);
+        writeCredentialsToKeychain(refreshed.access_token, refreshed.refresh_token);
+        // Retry immediately with the new token
+        const usage = await fetchUsage(refreshed.access_token);
+        lastUsage = usage;
+        consecutiveErrors = 0;
+        reschedule(BASE_POLL_MS);
+        updateStatusBarAppearance(usage);
+        return;
+      } catch {
+        // Refresh failed — fall through to backoff
+      }
+    }
+
     if (err.isRateLimit) {
-      // Use Retry-After header if available, otherwise exponential backoff
       const backoffSec = Math.max(60, err.retryAfterSec || Math.min(60 * 2 ** consecutiveErrors, MAX_POLL_MS / 1000));
       reschedule(backoffSec * 1000);
       statusBarItem.text = "$(warning) Claude: Rate Limited";
-      statusBarItem.tooltip = `Rate limited — retrying in ${Math.round(backoffSec / 60)}m`;
+      statusBarItem.tooltip = cachedRefreshToken
+        ? `Rate limited — token refresh failed, retrying in ${Math.round(backoffSec / 60)}m`
+        : `Rate limited — no refresh token, retrying in ${Math.round(backoffSec / 60)}m`;
       statusBarItem.backgroundColor = new vscode.ThemeColor(
         "statusBarItem.warningBackground"
       );
@@ -341,14 +457,19 @@ export function activate(context: vscode.ExtensionContext): void {
   const refreshCmd = vscode.commands.registerCommand(
     "claude-usage.refresh",
     () => {
-      if (lastUsage) {
-        showUsageQuickPick(lastUsage);
-      } else {
+      if (consecutiveErrors > 0 || !lastUsage) {
+        // Force retry when in error/rate-limited state or no data yet
+        consecutiveErrors = 0;
+        statusBarItem.text = "$(loading~spin) Claude";
+        statusBarItem.backgroundColor = undefined;
+        statusBarItem.tooltip = "Retrying…";
         updateUsage().then(() => {
           if (lastUsage) {
             showUsageQuickPick(lastUsage);
           }
         });
+      } else {
+        showUsageQuickPick(lastUsage);
       }
     }
   );
@@ -360,10 +481,10 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(silentRefreshCmd);
 
-  // Refresh immediately when this window gains focus
+  // Refresh on focus, but debounce to avoid excessive requests
   context.subscriptions.push(
     vscode.window.onDidChangeWindowState((state) => {
-      if (state.focused) {
+      if (state.focused && Date.now() - lastFetchTime >= FOCUS_DEBOUNCE_MS) {
         updateUsage();
       }
     })
