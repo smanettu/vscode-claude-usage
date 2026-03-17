@@ -2,7 +2,7 @@
   "name": "vscode-claude-usage",
   "displayName": "Claude Code Usage Bar",
   "description": "Display Claude Code usage limits in the VS Code status bar",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "smanettu",
   "author": "Vincenzo Vitale",
   "license": "MIT",
@@ -18,10 +18,23 @@
   "engines": {
     "vscode": "^1.94.0"
   },
-  "os": ["darwin"],
-  "categories": ["Other"],
-  "keywords": ["claude", "anthropic", "ai", "usage", "status-bar", "rate-limit"],
-  "activationEvents": ["onStartupFinished"],
+  "os": [
+    "darwin"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "anthropic",
+    "ai",
+    "usage",
+    "status-bar",
+    "rate-limit"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
