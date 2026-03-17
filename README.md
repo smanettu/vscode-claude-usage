@@ -1,4 +1,4 @@
-# Claude Usage — VS Code Extension
+# Claude Code Usage Bar — VS Code Extension
 
 Shows your [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Pro/Max) usage limits directly in the VS Code status bar — no need to check the browser.
 
@@ -25,6 +25,12 @@ Shows your [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Pro/Ma
 ## Install
 
 **From the VS Code Marketplace:** search for "Claude Code Usage Bar" in the Extensions panel, or install from the [Marketplace page](https://marketplace.visualstudio.com/items?itemName=smanettu.vscode-claude-usage).
+
+Or from the command line:
+
+```bash
+code --install-extension smanettu.vscode-claude-usage
+```
 
 **Manual install:**
 
